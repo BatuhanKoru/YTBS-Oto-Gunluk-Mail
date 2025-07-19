@@ -1,0 +1,32 @@
+name: Gunluk TEIAS Raporu Gonderici
+
+on:
+  workflow_dispatch: # Manuel olarak çalıştırma butonu ekler
+  schedule:
+    - cron: '0 15 * * *' # Her gün UTC saatiyle 05:00'de çalıştır (Türkiye saatiyle 08:00)
+
+jobs:
+  build-and-send-report:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Kodu Kopyala
+      uses: actions/checkout@v3
+
+    - name: Python 3.9 Kurulumu
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Gerekli Kütüphaneleri Yükle
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Raporu İndir ve E-posta Gönder
+      env:
+        GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+        GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+      run: |
+        python rapor_indirici_epostali.py
