@@ -3,7 +3,9 @@ name: Gunluk TEIAS Raporu Gonderici
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 15 * * *'
+    - cron: '0 10 * * *'
+    - cron: '0 12 * * *'
+    - cron: '0 14 * * *'
 
 jobs:
   build-and-send-report:
