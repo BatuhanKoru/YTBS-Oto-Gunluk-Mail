@@ -1,9 +1,9 @@
 name: Gunluk TEIAS Raporu Gonderici
 
 on:
-  workflow_dispatch: # Manuel olarak çalıştırma butonu ekler
+  workflow_dispatch:
   schedule:
-    - cron: '0 15 * * *' # Her gün UTC saatiyle 05:00'de çalıştır (Türkiye saatiyle 08:00)
+    - cron: '0 15 * * *'
 
 jobs:
   build-and-send-report:
@@ -24,9 +24,5 @@ jobs:
         pip install -r requirements.txt
 
     - name: Raporu İndir ve E-posta Gönder
-      env:
-        GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
-        GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-        RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
       run: |
         python rapor_indirici_epostali.py
