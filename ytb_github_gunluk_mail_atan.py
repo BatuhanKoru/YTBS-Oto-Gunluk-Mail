@@ -7,7 +7,6 @@ from email.mime.text import MIMEText
 from email import encoders
 from datetime import date, timedelta
 
-# Selenium kütüphanesinden gerekli modülleri içe aktarıyoruz
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
@@ -20,28 +19,20 @@ from selenium.common.exceptions import TimeoutException
 DOWNLOAD_KLASORU = "Gunluk_TEIAS_Raporlari"
 URL = "https://ytbsbilgi.teias.gov.tr/ytbsbilgi/frm_istatistikler.jsf"
 
+# === E-POSTA BİLGİLERİNİ DOĞRUDAN GİRİN ===
+# Deponuz "Private" olduğu için bu bilgiler güvendedir.
+GONDEREN_MAIL = "batuhankoru123@gmail.com"  # BURAYA KENDİ GMAIL ADRESİNİZİ YAZIN
+GONDEREN_SIFRE = "1295380068200195.Ba"  # BURAYA KENDİ NORMAL GOOGLE ŞİFRENİZİ YAZIN
+ALICI_MAIL = "batuhannkoru@gmail.com"  # BURAYA RAPORUN GÖNDERİLECEĞİ ADRESİ YAZIN
+
 
 # --- E-POSTA GÖNDERME FONKSİYONU ---
 def eposta_gonder(dosya_yolu, dosya_adi):
-    """
-    Belirtilen dosyayı e-posta ile gönderir.
-    E-posta bilgileri GitHub Secrets'tan (ortam değişkenlerinden) alınır.
-    """
-    # Gizli bilgileri ortam değişkenlerinden alıyoruz
-    gonderen_mail = os.environ.get('GMAIL_ADDRESS')
-    gonderen_sifre = os.environ.get('GMAIL_APP_PASSWORD')  # Bu, normal şifreniz değil, uygulama şifresi olacak
-    alici_mail = os.environ.get('RECIPIENT_EMAIL')
+    print(f"📬 E-posta hazırlanıyor: '{ALICI_MAIL}' adresine gönderilecek...")
 
-    if not all([gonderen_mail, gonderen_sifre, alici_mail]):
-        print("❌ E-posta bilgileri (GMAIL_ADDRESS, GMAIL_APP_PASSWORD, RECIPIENT_EMAIL) eksik!")
-        return
-
-    print(f"📬 E-posta hazırlanıyor: '{alici_mail}' adresine gönderilecek...")
-
-    # E-posta gövdesini oluşturuyoruz
     msg = MIMEMultipart()
-    msg['From'] = gonderen_mail
-    msg['To'] = alici_mail
+    msg['From'] = GONDEREN_MAIL
+    msg['To'] = ALICI_MAIL
 
     dunun_tarihi_str = (date.today() - timedelta(days=1)).strftime("%d-%m-%Y")
     msg['Subject'] = f"TEİAŞ Günlük Raporu ({dunun_tarihi_str})"
@@ -49,7 +40,6 @@ def eposta_gonder(dosya_yolu, dosya_adi):
     body = f"Merhaba,\n\n{dunun_tarihi_str} tarihli TEİAŞ Yük Tevzi Bilgi Sistemi günlük raporu ektedir.\n\nBu e-posta otomatik olarak gönderilmiştir."
     msg.attach(MIMEText(body, 'plain'))
 
-    # Dosyayı e-postaya ekliyoruz
     try:
         with open(dosya_yolu, "rb") as attachment:
             part = MIMEBase('application', 'octet-stream')
@@ -62,22 +52,22 @@ def eposta_gonder(dosya_yolu, dosya_adi):
         print(f"❌ Dosya eklenirken hata oluştu: {e}")
         return
 
-    # E-postayı gönderiyoruz
     try:
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
-        server.login(gonderen_mail, gonderen_sifre)
+        # DİKKAT: Artık normal şifrenizle giriş yapıyoruz.
+        server.login(GONDEREN_MAIL, GONDEREN_SIFRE)
         text = msg.as_string()
-        server.sendmail(gonderen_mail, alici_mail, text)
+        server.sendmail(GONDEREN_MAIL, ALICI_MAIL, text)
         server.quit()
         print("✅ E-posta başarıyla gönderildi!")
     except Exception as e:
         print(f"❌ E-posta gönderilirken bir hata oluştu: {e}")
 
 
-# --- ANA KOD BLOGU ---
+# --- ANA KOD BLOGU (Değişiklik yok) ---
 def raporu_indir_ve_gonder():
-    print("✅ Otomasyon başlatılıyor... (E-postalı Sürüm)")
+    print("✅ Otomasyon başlatılıyor... (Gizli Depo Sürümü)")
 
     dun = date.today() - timedelta(days=1)
     dunun_tarihi_str = dun.strftime("%d-%m-%Y")
@@ -87,7 +77,6 @@ def raporu_indir_ve_gonder():
     if not os.path.exists(indirilecek_tam_yol):
         os.makedirs(indirilecek_tam_yol)
 
-    # GitHub Actions üzerinde çalışırken görsel arayüze ihtiyaç duymayız (headless mode)
     chrome_options = webdriver.ChromeOptions()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
@@ -105,38 +94,32 @@ def raporu_indir_ve_gonder():
         driver.get(URL)
         wait = WebDriverWait(driver, 30)
 
-        # "Kabul Et" butonu (varsa)
         try:
             kabul_et_butonu = WebDriverWait(driver, 5).until(
                 EC.element_to_be_clickable((By.CSS_SELECTOR, "button[id$='btnKabul']")))
             kabul_et_butonu.click()
             time.sleep(2)
         except TimeoutException:
-            pass  # Buton yoksa devam et
+            pass
 
-        # Tarih girişi
         tarih_input = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "input[id$='bitisTarihi2_input']")))
         driver.execute_script(f"arguments[0].value='{dunun_tarihi_str}';", tarih_input)
         time.sleep(1)
 
-        # "Göster" butonu
         goster_butonu = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[id$='gunlukRapor']")))
         goster_butonu.click()
         time.sleep(5)
 
-        # Excel logosu
         excel_butonu = wait.until(
             EC.element_to_be_clickable((By.CSS_SELECTOR, "input[type='image'][src*='excel.png']")))
         excel_butonu.click()
         print("✔️ Rapor indirme işlemi başlatıldı.")
 
-        # Dosyanın inmesini bekleme ve dosya adını bulma
         print("📥 Dosyanın indirilmesi bekleniyor...")
-        time.sleep(15)  # İndirme için bekleme süresi
+        time.sleep(15)
 
         files = os.listdir(indirilecek_tam_yol)
         if files:
-            # En son indirilen dosyayı bul (genellikle tek dosya olacak)
             indirilen_dosya_adi = files[0]
             indirilen_dosya_yolu = os.path.join(indirilecek_tam_yol, indirilen_dosya_adi)
             print(f"👍 Dosya başarıyla indirildi: {indirilen_dosya_adi}")
@@ -148,7 +131,6 @@ def raporu_indir_ve_gonder():
     finally:
         driver.quit()
 
-    # İndirme başarılı olduysa e-posta gönder
     if indirilen_dosya_yolu:
         eposta_gonder(indirilen_dosya_yolu, indirilen_dosya_adi)
 
