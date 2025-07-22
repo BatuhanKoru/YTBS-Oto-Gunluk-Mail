@@ -19,20 +19,23 @@ from selenium.common.exceptions import TimeoutException
 DOWNLOAD_KLASORU = "Gunluk_TEIAS_Raporlari"
 URL = "https://ytbsbilgi.teias.gov.tr/ytbsbilgi/frm_istatistikler.jsf"
 
-# === E-POSTA BİLGİLERİNİ DOĞRUDAN GİRİN ===
-# Deponuz "Private" olduğu için bu bilgiler güvendedir.
-GONDEREN_MAIL = "batuhankoru123@gmail.com"  # BURAYA KENDİ GMAIL ADRESİNİZİ YAZIN
-GONDEREN_SIFRE = "1295380068200195.Ba"  # BURAYA KENDİ NORMAL GOOGLE ŞİFRENİZİ YAZIN
-ALICI_MAIL = "batuhannkoru@gmail.com"  # BURAYA RAPORUN GÖNDERİLECEĞİ ADRESİ YAZIN
 
-
-# --- E-POSTA GÖNDERME FONKSİYONU ---
+# --- E-POSTA GÖNDERME FONKSİYONU (GÜVENLİ VERSİYON) ---
 def eposta_gonder(dosya_yolu, dosya_adi):
-    print(f"📬 E-posta hazırlanıyor: '{ALICI_MAIL}' adresine gönderilecek...")
+    # Gizli bilgileri GitHub Secrets'tan (ortam değişkenlerinden) alıyoruz
+    gonderen_mail = os.environ.get('GMAIL_ADDRESS')
+    gonderen_sifre = os.environ.get('GMAIL_APP_PASSWORD')  # Bu, uygulama şifresi olacak
+    alici_mail = os.environ.get('RECIPIENT_EMAIL')
+
+    if not all([gonderen_mail, gonderen_sifre, alici_mail]):
+        print("❌ E-posta bilgileri (GMAIL_ADDRESS, GMAIL_APP_PASSWORD, RECIPIENT_EMAIL) GitHub Secrets'ta eksik!")
+        return
+
+    print(f"📬 E-posta hazırlanıyor: '{alici_mail}' adresine gönderilecek...")
 
     msg = MIMEMultipart()
-    msg['From'] = GONDEREN_MAIL
-    msg['To'] = ALICI_MAIL
+    msg['From'] = gonderen_mail
+    msg['To'] = alici_mail
 
     dunun_tarihi_str = (date.today() - timedelta(days=1)).strftime("%d-%m-%Y")
     msg['Subject'] = f"TEİAŞ Günlük Raporu ({dunun_tarihi_str})"
@@ -55,20 +58,22 @@ def eposta_gonder(dosya_yolu, dosya_adi):
     try:
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
-        # DİKKAT: Artık normal şifrenizle giriş yapıyoruz.
-        server.login(GONDEREN_MAIL, GONDEREN_SIFRE)
+        server.login(gonderen_mail, gonderen_sifre)
         text = msg.as_string()
-        server.sendmail(GONDEREN_MAIL, ALICI_MAIL, text)
+        server.sendmail(gonderen_mail, alici_mail, text)
         server.quit()
         print("✅ E-posta başarıyla gönderildi!")
     except Exception as e:
         print(f"❌ E-posta gönderilirken bir hata oluştu: {e}")
 
 
-# --- ANA KOD BLOGU (Değişiklik yok) ---
+# --- ANA KOD BLOGU ---
 def raporu_indir_ve_gonder():
-    print("✅ Otomasyon başlatılıyor... (Gizli Depo Sürümü)")
+    # ... Bu fonksiyonun geri kalanı sizin dosyanızdaki ile aynı kalabilir,
+    # Sadece dosya adını doğru kullandığımızdan emin olalım:
+    # rapor_indirici_epostali.py yerine ytb_github_gunluk_mail_atan.py
 
+    print("✅ Otomasyon başlatılıyor... (GitHub Secrets Sürümü)")
     dun = date.today() - timedelta(days=1)
     dunun_tarihi_str = dun.strftime("%d-%m-%Y")
     print(f"📅 Rapor tarihi olarak hesaplanan gün: {dunun_tarihi_str}")
