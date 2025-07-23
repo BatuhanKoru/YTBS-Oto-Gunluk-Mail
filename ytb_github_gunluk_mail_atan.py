@@ -7,9 +7,9 @@ from email.mime.text import MIMEText
 from email import encoders
 from datetime import date, timedelta
 
-from selenium import webdriver
+# Standart Selenium yerine, daha güçlü olan undetected_chromedriver'ı içe aktarıyoruz
+import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
-# Service ve ChromeDriverManager artık gerekli değil
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
@@ -26,7 +26,7 @@ def eposta_gonder(dosya_yolu, dosya_adi):
     alici_mail = os.environ.get('RECIPIENT_EMAIL')
 
     if not all([gonderen_mail, gonderen_sifre, alici_mail]):
-        print("❌ E-posta bilgileri (GMAIL_ADDRESS, GMAIL_APP_PASSWORD, RECIPIENT_EMAIL) GitHub Secrets'ta eksik!")
+        print("❌ E-posta bilgileri GitHub Secrets'ta eksik!")
         return
 
     print(f"📬 E-posta hazırlanıyor: '{alici_mail}' adresine gönderilecek...")
@@ -35,7 +35,7 @@ def eposta_gonder(dosya_yolu, dosya_adi):
     msg['To'] = alici_mail
     dunun_tarihi_str = (date.today() - timedelta(days=1)).strftime("%d-%m-%Y")
     msg['Subject'] = f"TEİAŞ Günlük Raporu ({dunun_tarihi_str})"
-    body = f"Merhaba,\n\n{dunun_tarihi_str} tarihli TEİAŞ Yük Tevzi Bilgi Sistemi günlük raporu ektedir.\n\nBu e-posta otomatik olarak gönderilmiştir."
+    body = f"Merhaba,\n\n{dunun_tarihi_str} tarihli TEİAŞ raporu ektedir.\n\nBu e-posta otomatik olarak gönderilmiştir."
     msg.attach(MIMEText(body, 'plain'))
 
     try:
@@ -64,7 +64,7 @@ def eposta_gonder(dosya_yolu, dosya_adi):
 
 # --- ANA KOD BLOGU ---
 def raporu_indir_ve_gonder():
-    print("✅ Otomasyon başlatılıyor... (Nihai Sürüm)")
+    print("✅ Otomasyon başlatılıyor... (Undetected-Chromedriver Sürümü)")
     dun = date.today() - timedelta(days=1)
     dunun_tarihi_str = dun.strftime("%d-%m-%Y")
     print(f"📅 Rapor tarihi olarak hesaplanan gün: {dunun_tarihi_str}")
@@ -73,18 +73,18 @@ def raporu_indir_ve_gonder():
     if not os.path.exists(indirilecek_tam_yol):
         os.makedirs(indirilecek_tam_yol)
 
-    chrome_options = webdriver.ChromeOptions()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--window-size=1920,1080")
+    # === DEĞİŞİKLİK BURADA: undetected_chromedriver ayarlarını kullanıyoruz ===
+    options = uc.ChromeOptions()
+    options.add_argument("--headless=new")  # Modern headless modu
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
 
+    # İndirme klasörünü ayarlıyoruz
     prefs = {"download.default_directory": indirilecek_tam_yol}
-    chrome_options.add_experimental_option("prefs", prefs)
+    options.add_experimental_option("prefs", prefs)
 
-    # === DEĞİŞİKLİK BURADA: Selenium'un kendi sürücü yöneticisini kullanıyoruz ===
-    # webdriver-manager'a artık ihtiyacımız yok.
-    driver = webdriver.Chrome(options=chrome_options)
+    # Tarayıcıyı uc.Chrome ile başlatıyoruz
+    driver = uc.Chrome(options=options, use_subprocess=False)
 
     indirilen_dosya_yolu = ""
     try:
@@ -92,7 +92,7 @@ def raporu_indir_ve_gonder():
         driver.get(URL)
         wait = WebDriverWait(driver, 30)
 
-        # "Kabul Et" butonu (varsa)
+        # "Kabul Et" butonu
         try:
             kabul_et_butonu = WebDriverWait(driver, 5).until(
                 EC.element_to_be_clickable((By.CSS_SELECTOR, "button[id$='btnKabul']")))
@@ -101,7 +101,7 @@ def raporu_indir_ve_gonder():
         except TimeoutException:
             pass
 
-        # Tarih girişi ve diğer adımlar aynı
+            # Diğer adımlar tamamen aynı
         tarih_input = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "input[id$='bitisTarihi2_input']")))
         driver.execute_script(f"arguments[0].value='{dunun_tarihi_str}';", tarih_input)
         time.sleep(1)
@@ -120,7 +120,7 @@ def raporu_indir_ve_gonder():
 
         files = os.listdir(indirilecek_tam_yol)
         if files:
-            indirilen_dosya_adi = sorted(files)[-1]  # En son dosyayı bul
+            indirilen_dosya_adi = sorted(files)[-1]
             indirilen_dosya_yolu = os.path.join(indirilecek_tam_yol, indirilen_dosya_adi)
             print(f"👍 Dosya başarıyla indirildi: {indirilen_dosya_adi}")
         else:
@@ -128,7 +128,6 @@ def raporu_indir_ve_gonder():
 
     except Exception as e:
         print(f"❌ Rapor indirilirken bir hata oluştu: {e}")
-        driver.save_screenshot("hata_ekrani.png")  # Hata anında ekran görüntüsü al
     finally:
         driver.quit()
 
