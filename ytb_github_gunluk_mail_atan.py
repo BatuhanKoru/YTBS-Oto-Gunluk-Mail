@@ -9,8 +9,7 @@ from datetime import date, timedelta
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
+# Service ve ChromeDriverManager artık gerekli değil
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
@@ -20,11 +19,10 @@ DOWNLOAD_KLASORU = "Gunluk_TEIAS_Raporlari"
 URL = "https://ytbsbilgi.teias.gov.tr/ytbsbilgi/frm_istatistikler.jsf"
 
 
-# --- E-POSTA GÖNDERME FONKSİYONU (GÜVENLİ VERSİYON) ---
+# --- E-POSTA GÖNDERME FONKSİYONU (Değişiklik yok) ---
 def eposta_gonder(dosya_yolu, dosya_adi):
-    # Gizli bilgileri GitHub Secrets'tan (ortam değişkenlerinden) alıyoruz
     gonderen_mail = os.environ.get('GMAIL_ADDRESS')
-    gonderen_sifre = os.environ.get('GMAIL_APP_PASSWORD')  # Bu, uygulama şifresi olacak
+    gonderen_sifre = os.environ.get('GMAIL_APP_PASSWORD')
     alici_mail = os.environ.get('RECIPIENT_EMAIL')
 
     if not all([gonderen_mail, gonderen_sifre, alici_mail]):
@@ -32,14 +30,11 @@ def eposta_gonder(dosya_yolu, dosya_adi):
         return
 
     print(f"📬 E-posta hazırlanıyor: '{alici_mail}' adresine gönderilecek...")
-
     msg = MIMEMultipart()
     msg['From'] = gonderen_mail
     msg['To'] = alici_mail
-
     dunun_tarihi_str = (date.today() - timedelta(days=1)).strftime("%d-%m-%Y")
     msg['Subject'] = f"TEİAŞ Günlük Raporu ({dunun_tarihi_str})"
-
     body = f"Merhaba,\n\n{dunun_tarihi_str} tarihli TEİAŞ Yük Tevzi Bilgi Sistemi günlük raporu ektedir.\n\nBu e-posta otomatik olarak gönderilmiştir."
     msg.attach(MIMEText(body, 'plain'))
 
@@ -69,11 +64,7 @@ def eposta_gonder(dosya_yolu, dosya_adi):
 
 # --- ANA KOD BLOGU ---
 def raporu_indir_ve_gonder():
-    # ... Bu fonksiyonun geri kalanı sizin dosyanızdaki ile aynı kalabilir,
-    # Sadece dosya adını doğru kullandığımızdan emin olalım:
-    # rapor_indirici_epostali.py yerine ytb_github_gunluk_mail_atan.py
-
-    print("✅ Otomasyon başlatılıyor... (GitHub Secrets Sürümü)")
+    print("✅ Otomasyon başlatılıyor... (Nihai Sürüm)")
     dun = date.today() - timedelta(days=1)
     dunun_tarihi_str = dun.strftime("%d-%m-%Y")
     print(f"📅 Rapor tarihi olarak hesaplanan gün: {dunun_tarihi_str}")
@@ -91,7 +82,9 @@ def raporu_indir_ve_gonder():
     prefs = {"download.default_directory": indirilecek_tam_yol}
     chrome_options.add_experimental_option("prefs", prefs)
 
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+    # === DEĞİŞİKLİK BURADA: Selenium'un kendi sürücü yöneticisini kullanıyoruz ===
+    # webdriver-manager'a artık ihtiyacımız yok.
+    driver = webdriver.Chrome(options=chrome_options)
 
     indirilen_dosya_yolu = ""
     try:
@@ -99,6 +92,7 @@ def raporu_indir_ve_gonder():
         driver.get(URL)
         wait = WebDriverWait(driver, 30)
 
+        # "Kabul Et" butonu (varsa)
         try:
             kabul_et_butonu = WebDriverWait(driver, 5).until(
                 EC.element_to_be_clickable((By.CSS_SELECTOR, "button[id$='btnKabul']")))
@@ -107,6 +101,7 @@ def raporu_indir_ve_gonder():
         except TimeoutException:
             pass
 
+        # Tarih girişi ve diğer adımlar aynı
         tarih_input = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "input[id$='bitisTarihi2_input']")))
         driver.execute_script(f"arguments[0].value='{dunun_tarihi_str}';", tarih_input)
         time.sleep(1)
@@ -125,7 +120,7 @@ def raporu_indir_ve_gonder():
 
         files = os.listdir(indirilecek_tam_yol)
         if files:
-            indirilen_dosya_adi = files[0]
+            indirilen_dosya_adi = sorted(files)[-1]  # En son dosyayı bul
             indirilen_dosya_yolu = os.path.join(indirilecek_tam_yol, indirilen_dosya_adi)
             print(f"👍 Dosya başarıyla indirildi: {indirilen_dosya_adi}")
         else:
@@ -133,6 +128,7 @@ def raporu_indir_ve_gonder():
 
     except Exception as e:
         print(f"❌ Rapor indirilirken bir hata oluştu: {e}")
+        driver.save_screenshot("hata_ekrani.png")  # Hata anında ekran görüntüsü al
     finally:
         driver.quit()
 
