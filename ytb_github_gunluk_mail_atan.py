@@ -7,24 +7,20 @@ from email.mime.text import MIMEText
 from email import encoders
 from datetime import date, timedelta
 
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
+# Selenium yerine yeni kütüphanelerimizi ekliyoruz
+import requests
+from bs4 import BeautifulSoup
 
 # --- PROJE AYARLARI ---
 DOWNLOAD_KLASORU = "Gunluk_TEIAS_Raporlari"
 URL = "https://ytbsbilgi.teias.gov.tr/ytbsbilgi/frm_istatistikler.jsf"
 
 
-# --- E-POSTA GÖNDERME FONKSİYONU ---
+# --- E-POSTA GÖNDERME FONKSİYONU (Aynı kalıyor) ---
 def eposta_gonder(dosya_yolu, dosya_adi):
     gonderen_mail = os.environ.get('GMAIL_ADDRESS')
     gonderen_sifre = os.environ.get('GMAIL_APP_PASSWORD')
     alici_mail = os.environ.get('RECIPIENT_EMAIL')
-
     if not all([gonderen_mail, gonderen_sifre, alici_mail]):
         print("❌ E-posta bilgileri GitHub Secrets'ta eksik!")
         return
@@ -32,9 +28,8 @@ def eposta_gonder(dosya_yolu, dosya_adi):
     msg = MIMEMultipart()
     msg['From'] = gonderen_mail
     msg['To'] = alici_mail
-    dunun_tarihi_str = (date.today() - timedelta(days=1)).strftime("%d-%m-%Y")
-    msg['Subject'] = f"TEİAŞ Günlük Raporu ({dunun_tarihi_str})"
-    body = f"Merhaba,\n\n{dunun_tarihi_str} tarihli TEİAŞ raporu ektedir.\n\nBu e-posta otomatik olarak gönderilmiştir."
+    msg['Subject'] = f"TEİAŞ Günlük Raporu ({dosya_adi.split('_')[-1].replace('.xlsx', '')})"
+    body = f"Merhaba,\n\n{dosya_adi.split('_')[-1].replace('.xlsx', '')} tarihli TEİAŞ raporu ektedir.\n\nBu e-posta otomatik olarak gönderilmiştir."
     msg.attach(MIMEText(body, 'plain'))
     try:
         with open(dosya_yolu, "rb") as attachment:
@@ -59,79 +54,77 @@ def eposta_gonder(dosya_yolu, dosya_adi):
         print(f"❌ E-posta gönderilirken bir hata oluştu: {e}")
 
 
-# --- ANA KOD BLOGU ---
-def raporu_indir_ve_gonder():
-    print("✅ Otomasyon başlatılıyor... (Son Kontrollü Sürüm)")
+# --- ANA KOD BLOGU (YENİ YÖNTEM) ---
+def raporu_indir_ve_gonder_tarayicisiz():
+    print("✅ Otomasyon başlatılıyor... (Tarayıcısız - Direkt İstek Sürümü)")
+
+    # 1. Dünün tarihini hem 'GG-AA-YYYY' hem de 'YYYY-MM-DD' formatında hazırlıyoruz
     dun = date.today() - timedelta(days=1)
-    dunun_tarihi_str = dun.strftime("%d-%m-%Y")
-    print(f"📅 Rapor tarihi olarak hesaplanan gün: {dunun_tarihi_str}")
+    tarih_form_icin = dun.strftime("%d-%m-%Y")
+    tarih_dosya_icin = dun.strftime("%Y-%m-%d")
+    print(f"📅 Rapor tarihi olarak '{tarih_form_icin}' kullanılacak.")
 
-    indirilecek_tam_yol = os.path.join(os.getcwd(), DOWNLOAD_KLASORU)
-    if not os.path.exists(indirilecek_tam_yol):
-        os.makedirs(indirilecek_tam_yol)
+    # 2. İndirme klasörünü oluştur
+    indirilecek_klasor_yolu = os.path.join(os.getcwd(), DOWNLOAD_KLASORU)
+    if not os.path.exists(indirilecek_klasor_yolu):
+        os.makedirs(indirilecek_klasor_yolu)
 
-    options = webdriver.ChromeOptions()
-    options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-sh-usage")
-    options.add_argument("--window-size=1920,1080")
+    # 3. Oturumu başlat ve gizli anahtarı (ViewState) al
+    try:
+        print("🌍 Sunucuya bağlanılıyor ve oturum anahtarı (ViewState) alınıyor...")
+        # requests.Session() çerezleri ve oturum bilgilerini otomatik yönetir
+        session = requests.Session()
 
-    prefs = {"download.default_directory": indirilecek_tam_yol}
-    options.add_experimental_option("prefs", prefs)
+        # Siteye ilk "merhaba" isteğini gönderiyoruz
+        ilk_yanit = session.get(URL, timeout=30)
+        ilk_yanit.raise_for_status()  # Hata varsa programı durdur
 
-    # .yml dosyasından gelen sürücü yolunu okuyoruz. Değişken adını güncelledik.
-    sürücü_yolu = os.environ.get('CHROMEDRIVER_PATH_ENV')
-
-    if not sürücü_yolu:
-        print("❌ KRİTİK HATA: .yml dosyasından sürücü yolu (CHROMEDRIVER_PATH_ENV) alınamadı!")
+        # BeautifulSoup ile HTML'i analiz edip gizli ViewState'i buluyoruz
+        soup = BeautifulSoup(ilk_yanit.content, 'html.parser')
+        view_state = soup.find('input', {'name': 'jakarta.faces.ViewState'}).get('value')
+        print("✔️ Oturum anahtarı başarıyla alındı.")
+    except Exception as e:
+        print(f"❌ Sitenin ilk açılışında veya ViewState alınırken hata oluştu: {e}")
         return
 
-    print(f"✔️ Sürücü yolu .yml dosyasından başarıyla alındı.")
-    service = Service(executable_path=sürücü_yolu)
+    # 4. Excel'i indirmek için gerekli olan Form Verisini hazırla
+    form_verisi = {
+        "formdash": "formdash",
+        "hidden1": "13",
+        "formdash:bitisTarihi2_input": tarih_form_icin,
+        # Bu satır, "Göster" yerine "Excel" butonuna bastığımızı belirtir.
+        # HTML kodunu inceleyerek bu ID'yi bulduk.
+        "formdash:j_idt45": "formdash:j_idt45",
+        "formdash:yilsecim_focus": "",
+        "formdash:yilsecim_input": dun.year,
+        "jakarta.faces.ViewState": view_state
+    }
 
-    driver = None
+    # 5. Dosyayı indirme isteğini gönder
     try:
-        print("🚀 Tarayıcı hazırlanıyor...")
-        driver = webdriver.Chrome(service=service, options=options)
-        print("🌍 Tarayıcı başarıyla başlatıldı.")
+        print("📥 Excel dosyası için indirme isteği gönderiliyor...")
+        # Aynı oturumla, hazırladığımız form verisini sunucuya POST metoduyla gönderiyoruz
+        excel_yaniti = session.post(URL, data=form_verisi, timeout=30)
+        excel_yaniti.raise_for_status()
 
-        print(f"🔗 '{URL}' adresine gidiliyor...")
-        driver.get(URL)
-        wait = WebDriverWait(driver, 30)
-        try:
-            kabul_et_butonu = WebDriverWait(driver, 5).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, "button[id$='btnKabul']")))
-            kabul_et_butonu.click();
-            time.sleep(2)
-        except TimeoutException:
-            pass
-        tarih_input = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "input[id$='bitisTarihi2_input']")))
-        driver.execute_script(f"arguments[0].value='{dunun_tarihi_str}';", tarih_input);
-        time.sleep(1)
-        goster_butonu = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[id$='gunlukRapor']")));
-        goster_butonu.click();
-        time.sleep(5)
-        excel_butonu = wait.until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, "input[type='image'][src*='excel.png']")));
-        excel_butonu.click()
-        print("✔️ Rapor indirme işlemi başlatıldı.")
-        print("📥 Dosyanın indirilmesi bekleniyor...");
-        time.sleep(15)
-        files = os.listdir(indirilecek_tam_yol)
-        if files:
-            indirilen_dosya_adi = sorted(files)[-1]
-            indirilen_dosya_yolu = os.path.join(indirilecek_tam_yol, indirilen_dosya_adi)
-            print(f"👍 Dosya başarıyla indirildi: {indirilen_dosya_adi}")
-            eposta_gonder(indirilen_dosya_yolu, indirilen_dosya_adi)
-        else:
-            raise Exception("İndirme klasörü boş, dosya indirilemedi!")
+        # Dosya adını ve tam yolunu oluştur
+        dosya_adi = f"GENEL_GUNLUK_ISLETME_NETICESI_{tarih_dosya_icin}.xlsx"
+        dosya_yolu = os.path.join(indirilecek_klasor_yolu, dosya_adi)
+
+        # Sunucudan gelen dosya içeriğini diske yaz
+        with open(dosya_yolu, 'wb') as f:
+            f.write(excel_yaniti.content)
+
+        print(f"👍 Dosya başarıyla indirildi: {dosya_adi}")
+
+        # 6. E-posta gönder
+        eposta_gonder(dosya_yolu, dosya_adi)
+
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Dosya indirilirken bir ağ hatası oluştu: {e}")
     except Exception as e:
-        print(f"❌ Rapor indirilirken bir hata oluştu: {e}")
-    finally:
-        if driver:
-            driver.quit()
-            print("✔️ Tarayıcı kapatıldı.")
+        print(f"❌ Dosya indirme veya e-posta gönderme sırasında beklenmedik bir hata oluştu: {e}")
 
 
 if __name__ == "__main__":
-    raporu_indir_ve_gonder()
+    raporu_indir_ve_gonder_tarayicisiz()
