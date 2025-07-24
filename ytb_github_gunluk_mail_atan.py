@@ -19,7 +19,7 @@ DOWNLOAD_KLASORU = "Gunluk_TEIAS_Raporlari"
 URL = "https://ytbsbilgi.teias.gov.tr/ytbsbilgi/frm_istatistikler.jsf"
 
 
-# --- E-POSTA GÖNDERME FONKSİYONU (Değişiklik yok) ---
+# --- E-POSTA GÖNDERME FONKSİYONU ---
 def eposta_gonder(dosya_yolu, dosya_adi):
     gonderen_mail = os.environ.get('GMAIL_ADDRESS')
     gonderen_sifre = os.environ.get('GMAIL_APP_PASSWORD')
@@ -61,7 +61,7 @@ def eposta_gonder(dosya_yolu, dosya_adi):
 
 # --- ANA KOD BLOGU ---
 def raporu_indir_ve_gonder():
-    print("✅ Otomasyon başlatılıyor... (Temiz YAML Sürümü)")
+    print("✅ Otomasyon başlatılıyor... (Son Kontrollü Sürüm)")
     dun = date.today() - timedelta(days=1)
     dunun_tarihi_str = dun.strftime("%d-%m-%Y")
     print(f"📅 Rapor tarihi olarak hesaplanan gün: {dunun_tarihi_str}")
@@ -73,18 +73,20 @@ def raporu_indir_ve_gonder():
     options = webdriver.ChromeOptions()
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-dev-sh-usage")
     options.add_argument("--window-size=1920,1080")
 
     prefs = {"download.default_directory": indirilecek_tam_yol}
     options.add_experimental_option("prefs", prefs)
 
-    sürücü_yolu = os.environ.get('CHROMEDRIVER_PATH')
+    # .yml dosyasından gelen sürücü yolunu okuyoruz. Değişken adını güncelledik.
+    sürücü_yolu = os.environ.get('CHROMEDRIVER_PATH_ENV')
+
     if not sürücü_yolu:
-        print("❌ KRİTİK HATA: .yml dosyasından CHROMEDRIVER_PATH alınamadı!")
+        print("❌ KRİTİK HATA: .yml dosyasından sürücü yolu (CHROMEDRIVER_PATH_ENV) alınamadı!")
         return
 
-    print(f"✔️ Sürücü yolu .yml dosyasından başarıyla alındı: {sürücü_yolu}")
+    print(f"✔️ Sürücü yolu .yml dosyasından başarıyla alındı.")
     service = Service(executable_path=sürücü_yolu)
 
     driver = None
