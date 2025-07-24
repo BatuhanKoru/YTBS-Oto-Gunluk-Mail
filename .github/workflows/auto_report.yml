@@ -3,11 +3,8 @@ name: Gunluk TEIAS Raporu Gonderici
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 10 * * *' # Her gün UTC saatiyle 05:00'de çalıştır (Türkiye saatiyle 08:00)
-    - cron: '0 11 * * *'
-    - cron: '0 14 * * *'
-    - cron: '0 16 * * *'
-    - cron: '0 18 * * *'
+    - cron: '0 5 * * *' # Her gün UTC saatiyle 05:00'de (Türkiye saatiyle 08:00)
+
 jobs:
   build-and-send-report:
     runs-on: ubuntu-latest
@@ -15,6 +12,12 @@ jobs:
     steps:
     - name: Kodu Kopyala
       uses: actions/checkout@v3
+
+    # === YENİ VE KRİTİK ADIM: CHROME'U KURMA ===
+    - name: Stabil Google Chrome Kurulumu
+      uses: browser-actions/setup-chrome@v1
+      with:
+        chrome-version: stable # Her zaman en güncel stabil sürümü kurar
 
     - name: Python 3.9 Kurulumu
       uses: actions/setup-python@v4
@@ -32,4 +35,4 @@ jobs:
         GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
       run: |
-        python ytb_github_gunluk_mail_atan.py # Dosya adınızı sizin gönderdiğinizle güncelledim
+        python ytb_github_gunluk_mail_atan.py
