@@ -1,42 +1,40 @@
 name: Gunluk TEIAS Raporu Gonderici
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Manuel çalıştırma butonu
   schedule:
-    - cron: '0 5 * * *' # Her gün UTC saatiyle 05:00'de (Türkiye saatiyle 08:00)
+    - cron: '0 5 * * *' # Her gün UTC 05:00'de (TR saati 08:00) çalıştır
 
 jobs:
   build-and-send-report:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Kodu Kopyala
-      uses: actions/checkout@v3
+      - name: Kodu Kopyala
+        uses: actions/checkout@v3
 
-    # 1. Chrome'u ve ilgili sürücüsünü kuran adıma bir "id" veriyoruz.
-    - name: Stabil Google Chrome ve Sürücüsünü Kur
-      id: setup-chrome # <-- Adıma bir kimlik (id) verdik.
-      uses: browser-actions/setup-chrome@v1
-      with:
-        chrome-version: stable
+      # Adım A: Chrome ve sürücüsünü kur ve yolunu bir sonraki adıma aktar
+      - name: Stabil Google Chrome ve Sürücüsünü Kur
+        id: setup-chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
 
-    - name: Python 3.9 Kurulumu
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
+      - name: Python 3.9 Kurulumu
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
 
-    - name: Gerekli Kütüphaneleri Yükle
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+      - name: Gerekli Kütüphaneleri Yükle
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-    # 2. Python adımına, hem Chrome'un hem de ChromeDriver'ın yollarını aktarıyoruz.
-    - name: Raporu İndir ve E-posta Gönder
-      env:
-        GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
-        GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-        RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
-        CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}   # <-- Chrome'un yolu
-        CHROMEDRIVER_PATH: ${{ steps.setup-chrome.outputs.chromedriver-path }} # <-- Sürücünün yolu
-      run: |
-        python ytb_github_gunluk_mail_atan.py
+      # Adım B: Python koduna, Chrome ve sürücüsünün yolunu aktar
+      - name: Raporu İndir ve E-posta Gönder
+        env:
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+          CHROMEDRIVER_PATH: ${{ steps.setup-chrome.outputs.chromedriver-path }}
+        run: python ytb_github_gunluk_mail_atan.py
