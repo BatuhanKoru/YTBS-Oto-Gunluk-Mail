@@ -7,7 +7,6 @@ from email.mime.text import MIMEText
 from email import encoders
 from datetime import date, timedelta
 
-# Standart Selenium'a geri dönüyoruz
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
@@ -22,7 +21,6 @@ URL = "https://ytbsbilgi.teias.gov.tr/ytbsbilgi/frm_istatistikler.jsf"
 
 # --- E-POSTA GÖNDERME FONKSİYONU (Değişiklik yok) ---
 def eposta_gonder(dosya_yolu, dosya_adi):
-    # Bu fonksiyon mükemmel çalışıyor, dokunmuyoruz.
     gonderen_mail = os.environ.get('GMAIL_ADDRESS')
     gonderen_sifre = os.environ.get('GMAIL_APP_PASSWORD')
     alici_mail = os.environ.get('RECIPIENT_EMAIL')
@@ -63,7 +61,7 @@ def eposta_gonder(dosya_yolu, dosya_adi):
 
 # --- ANA KOD BLOGU ---
 def raporu_indir_ve_gonder():
-    print("✅ Otomasyon başlatılıyor... (Manuel Sürücü Yolu Sürümü)")
+    print("✅ Otomasyon başlatılıyor... (Temiz YAML Sürümü)")
     dun = date.today() - timedelta(days=1)
     dunun_tarihi_str = dun.strftime("%d-%m-%Y")
     print(f"📅 Rapor tarihi olarak hesaplanan gün: {dunun_tarihi_str}")
@@ -72,7 +70,6 @@ def raporu_indir_ve_gonder():
     if not os.path.exists(indirilecek_tam_yol):
         os.makedirs(indirilecek_tam_yol)
 
-    # === DEĞİŞİKLİK BURADA: Tarayıcıyı en kararlı şekilde başlatıyoruz ===
     options = webdriver.ChromeOptions()
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
@@ -82,13 +79,12 @@ def raporu_indir_ve_gonder():
     prefs = {"download.default_directory": indirilecek_tam_yol}
     options.add_experimental_option("prefs", prefs)
 
-    # .yml dosyasından gelen sürücü yolunu okuyoruz
     sürücü_yolu = os.environ.get('CHROMEDRIVER_PATH')
-
     if not sürücü_yolu:
-        raise Exception("CHROMEDRIVER_PATH ortam değişkeni bulunamadı!")
+        print("❌ KRİTİK HATA: .yml dosyasından CHROMEDRIVER_PATH alınamadı!")
+        return
 
-    print(f"✔️ Sürücü yolu bulundu: {sürücü_yolu}")
+    print(f"✔️ Sürücü yolu .yml dosyasından başarıyla alındı: {sürücü_yolu}")
     service = Service(executable_path=sürücü_yolu)
 
     driver = None
@@ -97,7 +93,6 @@ def raporu_indir_ve_gonder():
         driver = webdriver.Chrome(service=service, options=options)
         print("🌍 Tarayıcı başarıyla başlatıldı.")
 
-        # ... Geri kalan kod tamamen aynı ...
         print(f"🔗 '{URL}' adresine gidiliyor...")
         driver.get(URL)
         wait = WebDriverWait(driver, 30)
