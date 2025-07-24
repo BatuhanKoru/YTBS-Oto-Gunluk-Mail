@@ -13,8 +13,10 @@ jobs:
     - name: Kodu Kopyala
       uses: actions/checkout@v3
 
-    # Bu adım, sanal sunucuya stabil bir Chrome kurar
+    # === DÜZELTME BÖLÜMÜ BAŞLANGICI ===
+    # 1. Chrome'u kuran adıma bir "id" veriyoruz ki ona referans verebilelim.
     - name: Stabil Google Chrome Kurulumu
+      id: setup-chrome # <-- Adıma bir kimlik (id) verdik.
       uses: browser-actions/setup-chrome@v1
       with:
         chrome-version: stable
@@ -29,10 +31,13 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
+    # 2. Python adımına, bir önceki adımın çıktısını içeren bir ortam değişkeni ekliyoruz.
     - name: Raporu İndir ve E-posta Gönder
       env:
         GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
         GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+        CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }} # <-- EN KRİTİK DEĞİŞİKLİK BURADA!
       run: |
         python ytb_github_gunluk_mail_atan.py
+    # === DÜZELTME BÖLÜMÜ SONU ===
