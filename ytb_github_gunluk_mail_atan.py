@@ -7,8 +7,10 @@ from email.mime.text import MIMEText
 from email import encoders
 from datetime import date, timedelta
 
-import undetected_chromedriver as uc
+# Standart Selenium'a geri dönüyoruz
+from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
@@ -20,6 +22,7 @@ URL = "https://ytbsbilgi.teias.gov.tr/ytbsbilgi/frm_istatistikler.jsf"
 
 # --- E-POSTA GÖNDERME FONKSİYONU (Değişiklik yok) ---
 def eposta_gonder(dosya_yolu, dosya_adi):
+    # Bu fonksiyon mükemmel çalışıyor, dokunmuyoruz.
     gonderen_mail = os.environ.get('GMAIL_ADDRESS')
     gonderen_sifre = os.environ.get('GMAIL_APP_PASSWORD')
     alici_mail = os.environ.get('RECIPIENT_EMAIL')
@@ -27,7 +30,6 @@ def eposta_gonder(dosya_yolu, dosya_adi):
     if not all([gonderen_mail, gonderen_sifre, alici_mail]):
         print("❌ E-posta bilgileri GitHub Secrets'ta eksik!")
         return
-
     print(f"📬 E-posta hazırlanıyor: '{alici_mail}' adresine gönderilecek...")
     msg = MIMEMultipart()
     msg['From'] = gonderen_mail
@@ -36,7 +38,6 @@ def eposta_gonder(dosya_yolu, dosya_adi):
     msg['Subject'] = f"TEİAŞ Günlük Raporu ({dunun_tarihi_str})"
     body = f"Merhaba,\n\n{dunun_tarihi_str} tarihli TEİAŞ raporu ektedir.\n\nBu e-posta otomatik olarak gönderilmiştir."
     msg.attach(MIMEText(body, 'plain'))
-
     try:
         with open(dosya_yolu, "rb") as attachment:
             part = MIMEBase('application', 'octet-stream')
@@ -48,7 +49,6 @@ def eposta_gonder(dosya_yolu, dosya_adi):
     except Exception as e:
         print(f"❌ Dosya eklenirken hata oluştu: {e}")
         return
-
     try:
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
@@ -63,7 +63,7 @@ def eposta_gonder(dosya_yolu, dosya_adi):
 
 # --- ANA KOD BLOGU ---
 def raporu_indir_ve_gonder():
-    print("✅ Otomasyon başlatılıyor... (Nihai Stabil Sürüm)")
+    print("✅ Otomasyon başlatılıyor... (Manuel Sürücü Yolu Sürümü)")
     dun = date.today() - timedelta(days=1)
     dunun_tarihi_str = dun.strftime("%d-%m-%Y")
     print(f"📅 Rapor tarihi olarak hesaplanan gün: {dunun_tarihi_str}")
@@ -72,61 +72,54 @@ def raporu_indir_ve_gonder():
     if not os.path.exists(indirilecek_tam_yol):
         os.makedirs(indirilecek_tam_yol)
 
-    options = uc.ChromeOptions()
-    options.add_argument('--headless=new')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
+    # === DEĞİŞİKLİK BURADA: Tarayıcıyı en kararlı şekilde başlatıyoruz ===
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1920,1080")
 
     prefs = {"download.default_directory": indirilecek_tam_yol}
     options.add_experimental_option("prefs", prefs)
 
+    # .yml dosyasından gelen sürücü yolunu okuyoruz
+    sürücü_yolu = os.environ.get('CHROMEDRIVER_PATH')
+
+    if not sürücü_yolu:
+        raise Exception("CHROMEDRIVER_PATH ortam değişkeni bulunamadı!")
+
+    print(f"✔️ Sürücü yolu bulundu: {sürücü_yolu}")
+    service = Service(executable_path=sürücü_yolu)
+
     driver = None
     try:
         print("🚀 Tarayıcı hazırlanıyor...")
-        # === DEĞİŞİKLİK BURADA: Kurulu Chrome'un yolunu manuel olarak belirtiyoruz ===
-        # GitHub Actions'daki 'browser-actions/setup-chrome' adımı, tarayıcının yolunu
-        # 'CHROME_PATH' adında bir ortam değişkenine yazar. Biz de bunu okuyoruz.
-        chrome_yolu = os.environ.get('CHROME_PATH')
-
-        if chrome_yolu:
-            print(f"✔️ Chrome yolu bulundu: {chrome_yolu}")
-            driver = uc.Chrome(options=options, browser_executable_path=chrome_yolu)
-        else:
-            print("⚠️ CHROME_PATH bulunamadı, standart yöntemle deneniyor.")
-            driver = uc.Chrome(options=options)
-
+        driver = webdriver.Chrome(service=service, options=options)
         print("🌍 Tarayıcı başarıyla başlatıldı.")
 
+        # ... Geri kalan kod tamamen aynı ...
         print(f"🔗 '{URL}' adresine gidiliyor...")
         driver.get(URL)
         wait = WebDriverWait(driver, 30)
-
-        # "Kabul Et" butonu
         try:
             kabul_et_butonu = WebDriverWait(driver, 5).until(
                 EC.element_to_be_clickable((By.CSS_SELECTOR, "button[id$='btnKabul']")))
-            kabul_et_butonu.click()
+            kabul_et_butonu.click();
             time.sleep(2)
         except TimeoutException:
             pass
-
-        # Diğer adımlar
         tarih_input = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "input[id$='bitisTarihi2_input']")))
-        driver.execute_script(f"arguments[0].value='{dunun_tarihi_str}';", tarih_input)
+        driver.execute_script(f"arguments[0].value='{dunun_tarihi_str}';", tarih_input);
         time.sleep(1)
-
-        goster_butonu = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[id$='gunlukRapor']")))
-        goster_butonu.click()
+        goster_butonu = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[id$='gunlukRapor']")));
+        goster_butonu.click();
         time.sleep(5)
-
         excel_butonu = wait.until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, "input[type='image'][src*='excel.png']")))
+            EC.element_to_be_clickable((By.CSS_SELECTOR, "input[type='image'][src*='excel.png']")));
         excel_butonu.click()
         print("✔️ Rapor indirme işlemi başlatıldı.")
-
-        print("📥 Dosyanın indirilmesi bekleniyor...")
+        print("📥 Dosyanın indirilmesi bekleniyor...");
         time.sleep(15)
-
         files = os.listdir(indirilecek_tam_yol)
         if files:
             indirilen_dosya_adi = sorted(files)[-1]
@@ -135,7 +128,6 @@ def raporu_indir_ve_gonder():
             eposta_gonder(indirilen_dosya_yolu, indirilen_dosya_adi)
         else:
             raise Exception("İndirme klasörü boş, dosya indirilemedi!")
-
     except Exception as e:
         print(f"❌ Rapor indirilirken bir hata oluştu: {e}")
     finally:
