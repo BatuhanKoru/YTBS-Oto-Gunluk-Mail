@@ -7,7 +7,6 @@ from email.mime.text import MIMEText
 from email import encoders
 from datetime import date, timedelta
 
-# Standart Selenium yerine, daha güçlü olan undetected_chromedriver'ı içe aktarıyoruz
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -64,7 +63,7 @@ def eposta_gonder(dosya_yolu, dosya_adi):
 
 # --- ANA KOD BLOGU ---
 def raporu_indir_ve_gonder():
-    print("✅ Otomasyon başlatılıyor... (Undetected-Chromedriver Sürümü)")
+    print("✅ Otomasyon başlatılıyor... (Nihai Stabil Sürüm)")
     dun = date.today() - timedelta(days=1)
     dunun_tarihi_str = dun.strftime("%d-%m-%Y")
     print(f"📅 Rapor tarihi olarak hesaplanan gün: {dunun_tarihi_str}")
@@ -73,22 +72,24 @@ def raporu_indir_ve_gonder():
     if not os.path.exists(indirilecek_tam_yol):
         os.makedirs(indirilecek_tam_yol)
 
-    # === DEĞİŞİKLİK BURADA: undetected_chromedriver ayarlarını kullanıyoruz ===
+    # === DEĞİŞİKLİK BURADA: undetected_chromedriver ayarlarını en stabil hale getiriyoruz ===
     options = uc.ChromeOptions()
-    options.add_argument("--headless=new")  # Modern headless modu
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument('--headless=new')  # Modern headless modu
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
 
     # İndirme klasörünü ayarlıyoruz
     prefs = {"download.default_directory": indirilecek_tam_yol}
     options.add_experimental_option("prefs", prefs)
 
-    # Tarayıcıyı uc.Chrome ile başlatıyoruz
-    driver = uc.Chrome(options=options, use_subprocess=False)
-
-    indirilen_dosya_yolu = ""
+    driver = None  # Hata durumunda driver'ı kapatabilmek için önce tanımlıyoruz
     try:
-        print(f"🌍 '{URL}' adresine gidiliyor...")
+        # Tarayıcıyı uc.Chrome ile, altyapının kararlı çalışması için 'use_subprocess=True' ile başlatıyoruz
+        print("🚀 Tarayıcı hazırlanıyor...")
+        driver = uc.Chrome(options=options, use_subprocess=True)
+        print("🌍 Tarayıcı başarıyla başlatıldı.")
+
+        print(f"🔗 '{URL}' adresine gidiliyor...")
         driver.get(URL)
         wait = WebDriverWait(driver, 30)
 
@@ -101,7 +102,7 @@ def raporu_indir_ve_gonder():
         except TimeoutException:
             pass
 
-            # Diğer adımlar tamamen aynı
+        # Diğer adımlar
         tarih_input = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "input[id$='bitisTarihi2_input']")))
         driver.execute_script(f"arguments[0].value='{dunun_tarihi_str}';", tarih_input)
         time.sleep(1)
@@ -123,16 +124,19 @@ def raporu_indir_ve_gonder():
             indirilen_dosya_adi = sorted(files)[-1]
             indirilen_dosya_yolu = os.path.join(indirilecek_tam_yol, indirilen_dosya_adi)
             print(f"👍 Dosya başarıyla indirildi: {indirilen_dosya_adi}")
+            # İndirme başarılı olduysa e-posta gönder
+            eposta_gonder(indirilen_dosya_yolu, indirilen_dosya_adi)
         else:
             raise Exception("İndirme klasörü boş, dosya indirilemedi!")
 
     except Exception as e:
         print(f"❌ Rapor indirilirken bir hata oluştu: {e}")
+        if driver:
+            driver.save_screenshot("hata_ekrani.png")  # Hata anında ekran görüntüsü al
     finally:
-        driver.quit()
-
-    if indirilen_dosya_yolu:
-        eposta_gonder(indirilen_dosya_yolu, indirilen_dosya_adi)
+        if driver:
+            driver.quit()
+            print("✔️ Tarayıcı kapatıldı.")
 
 
 if __name__ == "__main__":
