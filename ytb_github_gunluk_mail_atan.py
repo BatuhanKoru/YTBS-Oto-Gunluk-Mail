@@ -72,21 +72,29 @@ def raporu_indir_ve_gonder():
     if not os.path.exists(indirilecek_tam_yol):
         os.makedirs(indirilecek_tam_yol)
 
-    # === DEĞİŞİKLİK BURADA: undetected_chromedriver ayarlarını en stabil hale getiriyoruz ===
     options = uc.ChromeOptions()
-    options.add_argument('--headless=new')  # Modern headless modu
+    options.add_argument('--headless=new')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
 
-    # İndirme klasörünü ayarlıyoruz
     prefs = {"download.default_directory": indirilecek_tam_yol}
     options.add_experimental_option("prefs", prefs)
 
-    driver = None  # Hata durumunda driver'ı kapatabilmek için önce tanımlıyoruz
+    driver = None
     try:
-        # Tarayıcıyı uc.Chrome ile, altyapının kararlı çalışması için 'use_subprocess=True' ile başlatıyoruz
         print("🚀 Tarayıcı hazırlanıyor...")
-        driver = uc.Chrome(options=options, use_subprocess=True)
+        # === DEĞİŞİKLİK BURADA: Kurulu Chrome'un yolunu manuel olarak belirtiyoruz ===
+        # GitHub Actions'daki 'browser-actions/setup-chrome' adımı, tarayıcının yolunu
+        # 'CHROME_PATH' adında bir ortam değişkenine yazar. Biz de bunu okuyoruz.
+        chrome_yolu = os.environ.get('CHROME_PATH')
+
+        if chrome_yolu:
+            print(f"✔️ Chrome yolu bulundu: {chrome_yolu}")
+            driver = uc.Chrome(options=options, browser_executable_path=chrome_yolu)
+        else:
+            print("⚠️ CHROME_PATH bulunamadı, standart yöntemle deneniyor.")
+            driver = uc.Chrome(options=options)
+
         print("🌍 Tarayıcı başarıyla başlatıldı.")
 
         print(f"🔗 '{URL}' adresine gidiliyor...")
@@ -124,15 +132,12 @@ def raporu_indir_ve_gonder():
             indirilen_dosya_adi = sorted(files)[-1]
             indirilen_dosya_yolu = os.path.join(indirilecek_tam_yol, indirilen_dosya_adi)
             print(f"👍 Dosya başarıyla indirildi: {indirilen_dosya_adi}")
-            # İndirme başarılı olduysa e-posta gönder
             eposta_gonder(indirilen_dosya_yolu, indirilen_dosya_adi)
         else:
             raise Exception("İndirme klasörü boş, dosya indirilemedi!")
 
     except Exception as e:
         print(f"❌ Rapor indirilirken bir hata oluştu: {e}")
-        if driver:
-            driver.save_screenshot("hata_ekrani.png")  # Hata anında ekran görüntüsü al
     finally:
         if driver:
             driver.quit()
