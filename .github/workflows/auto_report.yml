@@ -13,11 +13,11 @@ jobs:
     - name: Kodu Kopyala
       uses: actions/checkout@v3
 
-    # === YENİ VE KRİTİK ADIM: CHROME'U KURMA ===
+    # Bu adım, sanal sunucuya stabil bir Chrome kurar
     - name: Stabil Google Chrome Kurulumu
       uses: browser-actions/setup-chrome@v1
       with:
-        chrome-version: stable # Her zaman en güncel stabil sürümü kurar
+        chrome-version: stable
 
     - name: Python 3.9 Kurulumu
       uses: actions/setup-python@v4
